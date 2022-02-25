@@ -48,6 +48,7 @@
 #include <X11/extensions/XShm.h>
 #include <X11/extensions/shmproto.h>
 #include <X11/extensions/XInput2.h>
+#include <X11/extensions/Xfixes.h>
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
 #include <X11/Xlib-xcb.h>
@@ -1211,27 +1212,19 @@ _Static_assert(CURSOR_X11_MAX == CURSOR_X11 + XC_num_glyphs, "protocol bug");
 static void handle_cursor(Ghandles *g, struct windowdata *vm_window)
 {
     struct msg_cursor untrusted_msg;
-    int cursor_id;
-    Cursor cursor;
-
+    
     read_struct(g->vchan, untrusted_msg);
-    /* sanitize start */
-    if (untrusted_msg.cursor & CURSOR_X11) {
-        VERIFY(untrusted_msg.cursor < CURSOR_X11_MAX);
-        cursor_id = untrusted_msg.cursor & ~CURSOR_X11;
-    } else {
-        VERIFY(untrusted_msg.cursor == CURSOR_DEFAULT);
-        cursor_id = -1;
-    }
-    /* sanitize end */
 
     if (g->log_level > 0)
         fprintf(stderr, "handle_cursor, cursor = 0x%x\n",
                 untrusted_msg.cursor);
 
-    if (cursor_id < 0)
-        cursor = None;
-    else {
+    if (untrusted_msg.cursor & CURSOR_X11) {
+        int cursor_id;
+        Cursor cursor;
+        VERIFY(untrusted_msg.cursor < CURSOR_X11_MAX);
+        cursor_id = untrusted_msg.cursor & ~CURSOR_X11;
+
         /*
          * Should be true if CURSOR_X11_MAX == CURSOR_X11 + XC_num_glyphs,
          * but we don't want a protocol constant to depend on X headers.
@@ -1239,8 +1232,19 @@ static void handle_cursor(Ghandles *g, struct windowdata *vm_window)
         assert(cursor_id < XC_num_glyphs);
 
         cursor = g->cursors[cursor_id];
+        XDefineCursor(g->display, vm_window->local_winid, cursor);
+    } else switch (untrusted_msg.cursor) {
+    case CURSOR_DEFAULT:
+        XUndefineCursor(g->display, vm_window->local_winid);
+        break;
+    case CURSOR_SHOW:
+        XFixesShowCursor(g->display, vm_window->local_winid);
+        break;
+    case CURSOR_HIDE:
+        XFixesHideCursor(g->display, vm_window->local_winid);
+        break;
+    default: VERIFY(false);
     }
-    XDefineCursor(g->display, vm_window->local_winid, cursor);
 }
 
 /* check and handle guid-special keys
