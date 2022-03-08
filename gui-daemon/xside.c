@@ -1268,7 +1268,7 @@ static int is_special_keypress(Ghandles * g, const XIDeviceEvent * ev, XID remot
     /* copy */
     if (((int)ev->mods.effective & SPECIAL_KEYS_MASK) == g->copy_seq_mask
         && ev->detail == XKeysymToKeycode(g->display, g->copy_seq_key)) {
-        if (ev->type != KeyPress)
+        if (ev->evtype != KeyPress)
             return 1;
         g->clipboard_xevent_time = ev->time;
         if (g->qrexec_clipboard) {
@@ -1290,7 +1290,7 @@ static int is_special_keypress(Ghandles * g, const XIDeviceEvent * ev, XID remot
     /* paste */
     if (((int)ev->mods.effective & SPECIAL_KEYS_MASK) == g->paste_seq_mask
         && ev->detail == XKeysymToKeycode(g->display, g->paste_seq_key)) {
-        if (ev->type != KeyPress)
+        if (ev->evtype != KeyPress)
             return 1;
         inter_appviewer_lock(g, 1);
         clipboard_file_xevent_time = get_clipboard_file_xevent_timestamp();
