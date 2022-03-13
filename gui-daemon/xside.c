@@ -383,7 +383,7 @@ static Window mkwindow(Ghandles * g, struct windowdata *vm_window)
     
     // select xinput events
     XIEventMask xi_mask;
-    xi_mask.deviceid = XIAllDevices;
+    xi_mask.deviceid = XIAllMasterDevices; // https://stackoverflow.com/questions/44095001/getting-double-rawkeypress-events-using-xinput2
     xi_mask.mask_len = XIMaskLen(XI_LASTEVENT);
     xi_mask.mask = calloc(xi_mask.mask_len, sizeof(char));
     XISetMask(xi_mask.mask, XI_KeyPress);
@@ -391,6 +391,8 @@ static Window mkwindow(Ghandles * g, struct windowdata *vm_window)
     XISetMask(xi_mask.mask, XI_FocusIn);
     XISetMask(xi_mask.mask, XI_FocusOut);
     XISelectEvents(g->display, child_win, &xi_mask, 1);
+    free(xi_mask.mask);
+    XSync(g->display, False);
 
 
     XSetWMProtocols(g->display, child_win, &g->wmDeleteMessage, 1);
@@ -1888,6 +1890,16 @@ static void handle_configure_from_vm(Ghandles * g, struct windowdata *vm_window)
     }
 }
 
+static void send_keymap_notify(Ghandles * g)
+{
+    struct msg_hdr hdr;
+    char keys[32];
+    XQueryKeymap(g->display, keys);
+    hdr.type = MSG_KEYMAP_NOTIFY;
+    hdr.window = 0;
+    write_message(g->vchan, hdr, keys);
+}
+
 /* handle local Xserver event: EnterNotify, LeaveNotify
  * send it to VM, but alwo we use it to fix docked
  * window position */
@@ -1898,11 +1910,7 @@ static void process_xevent_crossing(Ghandles * g, const XCrossingEvent * ev)
     CHECK_NONMANAGED_WINDOW(g, ev->window);
 
     if (ev->type == EnterNotify) {
-        char keys[32];
-        XQueryKeymap(g->display, keys);
-        hdr.type = MSG_KEYMAP_NOTIFY;
-        hdr.window = 0;
-        write_message(g->vchan, hdr, keys);
+        send_keymap_notify(g);
     }
     /* move tray to correct position in VM */
     if (vm_window->is_docked &&
@@ -1948,13 +1956,10 @@ static void process_xievent_focus(Ghandles * g, const XILeaveEvent * ev)
     struct msg_hdr hdr;
     struct msg_focus k;
     CHECK_NONMANAGED_WINDOW(g, ev->event);
+    update_wm_user_time(g, ev->event, ev->time);
 
     if (ev->type == XI_FocusIn) {
-        char keys[32];
-        XQueryKeymap(g->display, keys);
-        hdr.type = MSG_KEYMAP_NOTIFY;
-        hdr.window = 0;
-        write_message(g->vchan, hdr, keys);
+        send_keymap_notify(g);
     }
     hdr.type = MSG_FOCUS;
     hdr.window = vm_window->remote_winid;
@@ -2309,11 +2314,7 @@ static void process_xevent_xembed(Ghandles * g, const XClientMessageEvent * ev)
     } else if (ev->data.l[1] == XEMBED_FOCUS_IN) {
         struct msg_hdr hdr;
         struct msg_focus k;
-        char keys[32];
-        XQueryKeymap(g->display, keys);
-        hdr.type = MSG_KEYMAP_NOTIFY;
-        hdr.window = 0;
-        write_message(g->vchan, hdr, keys);
+        send_keymap_notify(g);
         hdr.type = MSG_FOCUS;
         hdr.window = vm_window->remote_winid;
         k.type = FocusIn;
