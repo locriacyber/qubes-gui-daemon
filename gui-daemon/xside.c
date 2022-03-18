@@ -340,16 +340,10 @@ static void get_frame_gc(Ghandles * g, const char *name)
  */
 static Window mkwindow(Ghandles * g, struct windowdata *vm_window)
 {
-    char *gargv[1] = { NULL };
     Window child_win;
     Window parent;
-    XSizeHints my_size_hints;    /* hints for the window manager */
     int i;
     XSetWindowAttributes attr;
-
-    my_size_hints.flags = PSize;
-    my_size_hints.width = vm_window->width;
-    my_size_hints.height = vm_window->height;
 
     if (vm_window->parent)
         parent = vm_window->parent->local_winid;
@@ -365,11 +359,6 @@ static Window mkwindow(Ghandles * g, struct windowdata *vm_window)
                     CopyFromParent,
                     CopyFromParent,
                     CWOverrideRedirect | CWBackPixel, &attr);
-    /* pass my size hints to the window manager, along with window
-       and icon names */
-    (void) XSetStandardProperties(g->display, child_win,
-                      "VMapp command", "Pixmap", None,
-                      gargv, 0, &my_size_hints);
     if (g->time_win != None)
         XChangeProperty(g->display, child_win, g->wm_user_time_window,
                XA_WINDOW, 32, PropModeReplace,
