@@ -385,7 +385,10 @@ static Window mkwindow(Ghandles * g, struct windowdata *vm_window)
     XIEventMask xi_mask;
     xi_mask.deviceid = XIAllMasterDevices; // https://stackoverflow.com/questions/44095001/getting-double-rawkeypress-events-using-xinput2
     xi_mask.mask_len = XIMaskLen(XI_LASTEVENT);
-    xi_mask.mask = calloc(xi_mask.mask_len, sizeof(char));
+    if (!(xi_mask.mask = calloc(xi_mask.mask_len, sizeof(char)))) {
+        fputs("Out of memory!\n", stderr);
+        exit(1);
+    }
     XISetMask(xi_mask.mask, XI_KeyPress);
     XISetMask(xi_mask.mask, XI_KeyRelease);
     XISetMask(xi_mask.mask, XI_FocusIn);
@@ -666,6 +669,7 @@ static void mkghandles(Ghandles * g)
         fprintf(stderr, "MIT-SHM X extension missing!\n");
     if (!XQueryExtension(g->display, "XInputExtension", &g->xi_opcode, &ev_base, &err_base)) {
         fprintf(stderr, "X Input extension not available. Key press events not available. Upgrade your X11 server now.\n");
+        exit(1);
     }
     /* get the work area */
     XSelectInput(g->display, g->root_win, PropertyChangeMask);
@@ -1357,7 +1361,10 @@ static void process_xievent_keypress(Ghandles * g, const XIDeviceEvent * ev)
     struct msg_hdr hdr;
     struct msg_keypress k;
     CHECK_NONMANAGED_WINDOW(g, ev->event);
+    // yes, ev->event is the window number
     update_wm_user_time(g, ev->event, ev->time);
+    if (ev->flags & XIKeyRepeat)
+        return; // don't send key repeat events    
     if (is_special_keypress(g, ev, vm_window->remote_winid))
         return;
     k.type = ev->evtype; // ev->type is always Generic Event
@@ -2325,54 +2332,6 @@ static void process_xevent_xembed(Ghandles * g, const XClientMessageEvent * ev)
 
 }
 
-// reference code for handling xi2 events
-// static void process_xievent(Ghandles * g, XIDeviceEvent event) {
-//     switch (event.evtype)
-//     {
-//         case XI_RawButtonPress:
-//         case XI_RawButtonRelease:
-//         case XI_RawMotion:
-//         case XI_RawKeyPress:
-//         case XI_RawKeyRelease:
-//             break;
-//         case XI_KeyPress:
-//         case XI_KeyRelease:
-//             printf("    flags: %s\n", (event->flags & XIKeyRepeat) ?  "repeat" : "");
-//             // TODO: handle events
-//             break;
-//         case XI_ButtonPress:
-//         case XI_ButtonRelease:
-//         case XI_Motion:
-//             printf("    flags: %s\n", (event->flags & XIPointerEmulated) ?  "emulated" : "");
-//             // TODO: handle events
-//             break;
-//     }
-// }
-
-// static XKeyEvent xkeyevent_from_xinput_event(const XIDeviceEvent* xi_event) {
-//     XKeyEvent fake_event;
-//     switch (xi_event->evtype) {
-//     case XI_KeyPress: fake_event.type = KeyPress; break;
-//     case XI_KeyRelease: fake_event.type = KeyRelease; break;
-//     default: assert(false); // stop immediately
-//     }
-//     fake_event.serial = xi_event->serial;
-//     fake_event.send_event = false;
-//     fake_event.display = xi_event->display;
-//     fake_event.window = xi_event->event;
-//     fake_event.root = xi_event->root;
-//     fake_event.subwindow = xi_event->child; // from Manual page XKeyEvent(3)
-//     fake_event.time = xi_event->time;
-//     fake_event.x = xi_event->event_x;
-//     fake_event.y = xi_event->event_y;
-//     fake_event.x_root = xi_event->root_x;
-//     fake_event.y_root = xi_event->root_y;
-//     fake_event.state = xi_event->mods.effective;
-//     fake_event.keycode = xi_event->detail;
-//     fake_event.same_screen = true; // don't know how to fill this
-//     return fake_event;
-// }
-
 /* dispatch local Xserver event */
 static void process_xevent(Ghandles * g)
 {
@@ -2384,12 +2343,10 @@ static void process_xevent(Ghandles * g)
             cookie->extension == g->xi_opcode) {
         XIEvent* xi_event = cookie->data; // from test_xi2.c in xinput cli utility
 
-        XIDeviceEvent * xi_device = (XIDeviceEvent *)xi_event;
         switch (xi_event->evtype) {
         // ideally raw input events are better, but I'm relying on X server's built-in event filtering and routing feature here
         case XI_KeyPress:
         case XI_KeyRelease:
-            if (xi_device && (xi_device->flags & XIKeyRepeat)) break; // don't send key repeat events
             process_xievent_keypress(g, xi_device);
             break;
         case XI_FocusIn:
