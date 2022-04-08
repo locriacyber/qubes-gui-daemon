@@ -2347,7 +2347,7 @@ static void process_xevent(Ghandles * g)
         // ideally raw input events are better, but I'm relying on X server's built-in event filtering and routing feature here
         case XI_KeyPress:
         case XI_KeyRelease:
-            process_xievent_keypress(g, xi_device);
+            process_xievent_keypress(g, (XIDeviceEvent *)xi_event);
             break;
         case XI_FocusIn:
         case XI_FocusOut:
