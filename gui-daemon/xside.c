@@ -1399,6 +1399,21 @@ static void dump_mapped(Ghandles * g)
 }
 #endif
 
+static void process_xievent_focus(Ghandles * g, const XILeaveEvent * ev);
+
+static void focus_if_not_focused(Ghandles * g, const XButtonEvent * ev) {
+    Window focused;
+    int revertTo;
+    XGetInputFocus(g->display, &focused, &revertTo);
+    if (focused != ev->window) {
+        XILeaveEvent mock;
+        mock.type = XI_FocusIn;
+        mock.mode = NotifyNormal;
+        mock.detail = NotifyNonlinear;
+        process_xievent_focus(g, &mock);
+    }
+}
+
 /* handle local Xserver event: XButtonEvent
  * same as XKeyEvent - send to relevant window in VM */
 static void process_xevent_button(Ghandles * g, const XButtonEvent * ev)
@@ -1408,8 +1423,11 @@ static void process_xevent_button(Ghandles * g, const XButtonEvent * ev)
     CHECK_NONMANAGED_WINDOW(g, ev->window);
     update_wm_user_time(g, ev->window, ev->time);
 
-    k.type = ev->type;
+    if (ev->type == ButtonPress) {
+        focus_if_not_focused(g, ev);
+    } 
 
+    k.type = ev->type;
     k.x = ev->x;
     k.y = ev->y;
     k.state = ev->state;
