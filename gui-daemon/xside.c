@@ -1414,10 +1414,19 @@ static void dump_mapped(Ghandles * g)
 static void process_xievent_focus(Ghandles * g, const XILeaveEvent * ev);
 
 static void focus_if_not_focused(Ghandles * g, const XButtonEvent * ev) {
-    Window focused;
-    int revertTo;
-    XGetInputFocus(g->display, &focused, &revertTo);
-    if (focused != ev->window) {
+    /*
+    // TODO: get focus from client VM, not from dom0's perspective.
+    // For now, try to focus on every click.
+    // Maybe vmside.c should ignore incoming focus message when window already focused.
+    */
+
+    // Window focused;
+    // int revertTo;
+    // XGetInputFocus(g->display, &focused, &revertTo);
+    // bool is_focused = focused != ev->window;
+    ev = ev; // stop C warning
+    bool is_focused = true;
+    if (is_focused) {
         XILeaveEvent mock;
         mock.type = XI_FocusIn;
         mock.mode = NotifyNormal;
