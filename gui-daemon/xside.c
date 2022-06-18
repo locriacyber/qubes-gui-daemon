@@ -277,7 +277,8 @@ int x11_error_handler(Display * dpy, XErrorEvent * ev)
 
     char error_msg[1024];
     XGetErrorText(ev->display, ev->error_code, error_msg, sizeof(error_msg));
-    fprintf(stderr, "Encountered X Error:\n");
+    int now = (int) time(NULL); // truncate
+    fprintf(stderr, "[%d] Encountered X Error:\n", now);
     fprintf(stderr, error_msg);
     
 
@@ -402,7 +403,7 @@ static Window mkwindow(Ghandles * g, struct windowdata *vm_window)
     XISetMask(xi_mask.mask, XI_FocusOut);
     
     int err = XISelectEvents(g->display, child_win, &xi_mask, 1);
-    if (!err) {
+    if (err) {
         fprintf(stderr, "Failed to subscribe to XI events. ErrCode: %d\n", err);
         exit(1);
     }
@@ -1941,9 +1942,9 @@ static void send_keymap_notify(Ghandles * g)
     struct msg_hdr hdr;
     char keys[32];
     int err = XQueryKeymap(g->display, keys);
-    if (!err) {
+    if (err) {
         fprintf(stderr, "XQueryKeymap failed: %d.\n", err);
-        exit(1);
+        return; // non fatal
     }
     hdr.type = MSG_KEYMAP_NOTIFY;
     hdr.window = 0;
